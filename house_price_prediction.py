@@ -10,11 +10,13 @@ import matplotlib.pyplot as plt
 from scipy.stats import pearsonr
 import plotly.graph_objects as go
 import plotly.express as px
+from matplotlib.patches import Patch
 import plotly.io as pio
 
 from linear_regression import LinearRegression
 from sklearn import linear_model
 
+INNER_LOOP_AMOUNT = 10 
 
 
 def splitting_into_train_test(X, y,test_size=0.25):
@@ -140,80 +142,34 @@ if __name__ == '__main__':
     X_train,X_test, y_train, y_test = train_test_split(X,y, test_size=0.25,random_state = 30)
     # Question 3 - preprocessing of housing prices train dataset
     X_train,y_train = preprocess_train(X_train,y_train)
-    # print(X_train["id"].isna().value_counts())
     # Question 4 - Feature evaluation of train dataset with respect to response
     feature_evaluation(X_train,y_train,"./vis") 
     # Question 5 - preprocess the test data
     X_test = preprocess_test(X_test)
     # Question 6 - Fit model over increasing percentages of the overall training data
-    # For every percentage p in 10%, 11%, ..., 100%, repeat the following 10 times:
-    #   1) Sample p% of the overall training data
-    #   2) Fit linear model (including intercept) over sampled set
-    #   3) Test fitted model over test set
-    #   4) Store average and variance of loss over test set
-    # Then plot average loss as function of training size with error ribbon of size (mean-2*std, mean+2*std)
-    # percentages = np.arange(10, 101, 1)
-    # mean_losses = []
-    # std_losses = []
-    # all_data= []
-    # for p in percentages:
-    #     # graph_df["percentage"] = p
-    #     print(p)
-    #     losses = []
-    #     for i in range(10):
-    #         if p == 100:
-    #             train_sample_rate = 1
-    #         else:
-    #             train_sample_rate = p/100
-    #         s_X_train, s_X_test, s_y_train, s_y_test = train_test_split(X_train, y_train, train_size=train_sample_rate,random_state=30)
-    #         sklearn_model = linear_model.LinearRegression(fit_intercept = True)
-    #         model = LinearRegression(include_intercept=True)
-    #         model.fit(s_X_train, s_y_train)
-    #         sklearn_model.fit(s_X_train,s_y_train)
-    #         losses.append(sklearn_model.score(X_test,y_test))
-    #     #print("finish_lop")
-    #     # print(losses)
-    #     mean_losses.append(np.mean(losses))
-    #     std_losses.append(np.std(losses))
-    #     all_data.append([p,np.mean(losses),np.std(losses)])
-
-    # graph_df = pd.DataFrame(all_data,columns= ["percentage","mean","std"])
-    # graph_df.to_csv("graph_result.csv")
-    # mean_losses = np.array(mean_losses)
-    # std_losses = np.array(std_losses)
-
-    # print(mean_losses,std_losses)
-    # # print(graph_df)
-    # # Plotting average loss as a function of training size with error ribbon
-    # plt.figure(figsize=(10, 6))
-    # print(graph_df.astype(int))
-    # plt.plot(graph_df["percentage"], graph_df["mean"])
-    # # plt.fill_between(percentages, mean_losses - 2*std_losses, mean_losses + 2*std_losses, alpha=0.2, color='blue', label='Mean ± 2*STD')
-    # plt.xlabel('Percentage of Training Data')
-    # plt.ylabel('Mean Squared Error Loss')
-    # plt.title('Loss as Function of Training Data Size')
-    # plt.legend()
-    # plt.show()
-
-
-    # X_test, y_test = preprocess_data(X_test, y_test)
-    X_test = X_test.reindex(columns=X_train.columns, fill_value=0)
-
-    ps = list(range(10, 101))
-    results = np.zeros((len(ps), 10))
-    for i, p in enumerate(ps):
-        for j in range(results.shape[1]):
-            _X = X_train.sample(frac=p / 100.0)
+    percentages = np.arange(10, 101, 1)
+    mean_losses,std_losses, = [],[]
+    for p in percentages:
+        inner_loss_vals = []
+        for idx in range(10):
+            sample_ratio = (p / 100.0)
+            _X = X_train.sample(frac=sample_ratio)
             _y = y_train.loc[_X.index]
             model = LinearRegression(include_intercept=True)
-            results[i, j] = model.fit(_X, _y).loss(X_test, y_test)
-
-    m, s = results.mean(axis=1), results.std(axis=1)
-    fig = go.Figure([go.Scatter(x=ps, y=m-2*s, fill=None, mode="lines", line=dict(color="lightgrey")),
-                     go.Scatter(x=ps, y=m+2*s, fill='tonexty', mode="lines", line=dict(color="lightgrey")),
-                     go.Scatter(x=ps, y=m, mode="markers+lines", marker=dict(color="black"))],
-                    layout=go.Layout(title="Test MSE as Function Of Training Size",
-                                     xaxis=dict(title="Percentage of Training Set"),
-                                     yaxis=dict(title="MSE Over Test Set"),
-                                     showlegend=False))
-    fig.write_image("mse.over.training.percentage.png")
+            inner_loss_vals.append(model.fit(_X, _y).loss(X_test, y_test))
+        print(f"finish 10 loops for p{p} - with sample ratio -{sample_ratio} ")
+        mean_losses.append(np.mean(inner_loss_vals))
+        std_losses.append(np.std(inner_loss_vals))
+    mean_losses = np.array(mean_losses)
+    std_losses = np.array(std_losses)
+    plt.figure(figsize=(12, 8))
+    plt.plot(percentages, mean_losses, label='Mean loss',color= "green")
+    plt.fill_between(percentages, mean_losses - 2 * std_losses, mean_losses + 2 * std_losses, label='Error ribbon', alpha=0.2,color='lightblue')
+    plt.xlabel('Percentage(%) of Training Set')
+    plt.ylabel('Mean squared loss Over Test Set')
+    plt.title('MSE as Function Of Training Size')
+    plt.grid(True, zorder=0)
+    # Create custom legend handle for error ribbon
+    error_ribbon_handle = Patch(color='pink', alpha=0.2)
+    plt.legend()
+    plt.savefig("./loss")
